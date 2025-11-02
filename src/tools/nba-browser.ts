@@ -7,11 +7,33 @@ export const searchNBAData = tool({
   parameters: z.object({
     query: z.string().describe("Natural language query like 'LeBron James stats today' or 'Lakers vs Warriors score'")
   }),
-  execute: async ({ query }, context) => {
-    const { BROWSER } = context;
+  // @ts-ignore - AI SDK tool typing issue
+  execute: async (args: any, context: any) => {
+    // Extract query from various possible formats
+    let query: string = '';
+    if (typeof args === 'string') {
+      query = args;
+    } else if (args && typeof args === 'object') {
+      query = args.query || args.text || args.input || '';
+    }
+    
+    console.log('🔍 searchNBAData tool called with args:', JSON.stringify(args));
+    console.log('🔍 Extracted query:', query);
+    
+    if (!query || query === 'null' || query === 'undefined' || query.trim() === '') {
+      return JSON.stringify({ 
+        error: 'Query parameter is required. The tool needs a specific NBA-related question like "NBA games yesterday" or "LeBron James stats today".',
+        receivedArgs: args
+      });
+    }
+    
+    const { BROWSER } = context || {};
+    if (!BROWSER) {
+      return JSON.stringify({ error: 'Browser binding is not available' });
+    }
     const browser = await puppeteer.launch(BROWSER);
     const page = await browser.newPage();
-    page.setDefaultTimeout(30000);
+    page.setDefaultTimeout(10000); // 10 second timeout for real web browsing
 
     try {
       // Parse query to determine date
@@ -31,10 +53,10 @@ export const searchNBAData = tool({
       // Determine intent
       if (lowerQuery.includes('scoreboard') || lowerQuery.includes('games') || lowerQuery.includes('today') || lowerQuery.includes('yesterday')) {
         // Return scoreboard
-        const games = events.map(event => {
+        const games = events.map((event: any) => {
           const comp = event.competitions[0];
-          const home = comp.competitors.find(c => c.homeAway === 'home');
-          const away = comp.competitors.find(c => c.homeAway === 'away');
+          const home = comp.competitors.find((c: any) => c.homeAway === 'home');
+          const away = comp.competitors.find((c: any) => c.homeAway === 'away');
           return {
             gameId: event.id,
             date: event.date,
@@ -45,28 +67,28 @@ export const searchNBAData = tool({
             awayScore: away.score
           };
         });
-        return {
+        return JSON.stringify({
           type: 'scoreboard',
           data: games,
           source: 'ESPN',
           timestamp: new Date().toISOString()
-        };
+        });
       }
 
       // Check for specific game (two teams mentioned)
       const teamNames = ['lakers', 'warriors', 'celtics', 'bulls', 'heat', 'nets', 'knicks', 'bucks', '76ers', 'raptors', 'cavaliers', 'pistons', 'pacers', 'hawks', 'hornets', 'wizards', 'magic', 'grizzlies', 'pelicans', 'spurs', 'mavericks', 'thunder', 'trail blazers', 'jazz', 'nuggets', 'timberwolves', 'kings', 'clippers', 'suns'];
       const mentionedTeams = teamNames.filter(team => lowerQuery.includes(team));
       if (mentionedTeams.length >= 2) {
-        const game = events.find(event => {
+        const game = events.find((event: any) => {
           const comp = event.competitions[0];
-          const teams = comp.competitors.map(c => c.team.displayName.toLowerCase());
-          return mentionedTeams.every(team => teams.some(t => t.includes(team)));
+          const teams = comp.competitors.map((c: any) => c.team.displayName.toLowerCase());
+          return mentionedTeams.every((team: string) => teams.some((t: string) => t.includes(team)));
         });
         if (game) {
           const comp = game.competitions[0];
-          const home = comp.competitors.find(c => c.homeAway === 'home');
-          const away = comp.competitors.find(c => c.homeAway === 'away');
-          return {
+          const home = comp.competitors.find((c: any) => c.homeAway === 'home');
+          const away = comp.competitors.find((c: any) => c.homeAway === 'away');
+          return JSON.stringify({
             type: 'game_score',
             data: {
               gameId: game.id,
@@ -79,7 +101,7 @@ export const searchNBAData = tool({
             },
             source: 'ESPN',
             timestamp: new Date().toISOString()
-          };
+          });
         }
       }
 
@@ -107,13 +129,13 @@ export const searchNBAData = tool({
                   if (athlete.athlete.displayName.toLowerCase().includes(mentionedPlayer)) {
                     // Build stats object
                     const statCategories = teamPlayers.statistics || [];
-                    const statKeys = statCategories.flatMap(cat => cat.stats.map(s => s.name));
-                    const statLabels = statCategories.flatMap(cat => cat.stats.map(s => s.label));
-                    const statsObj = {};
-                    athlete.stats.forEach((value, idx) => {
+                    const statKeys = statCategories.flatMap((cat: any) => cat.stats.map((s: any) => s.name));
+                    const statLabels = statCategories.flatMap((cat: any) => cat.stats.map((s: any) => s.label));
+                    const statsObj: any = {};
+                    athlete.stats.forEach((value: any, idx: number) => {
                       statsObj[statLabels[idx] || statKeys[idx]] = value;
                     });
-                    return {
+                    return JSON.stringify({
                       type: 'player_stats',
                       data: {
                         player: athlete.athlete.displayName,
@@ -123,7 +145,7 @@ export const searchNBAData = tool({
                       },
                       source: 'ESPN',
                       timestamp: new Date().toISOString()
-                    };
+                    });
                   }
                 }
               }
@@ -135,10 +157,10 @@ export const searchNBAData = tool({
       // If no match, try fallback HTML scraping (Strategy B)
       await page.goto('https://www.espn.com/nba/scoreboard');
       const htmlData = await page.evaluate(() => {
-        const games = [];
+        const games: any[] = [];
         const gameElements = document.querySelectorAll('.ScoreCell, .ScoreboardScoreCell'); // Approximate selectors
         gameElements.forEach(el => {
-          const text = el.textContent.trim();
+          const text = el.textContent?.trim() || '';
           // Parse simple text, e.g., "Lakers 105 - Warriors 98 FINAL"
           const match = text.match(/(.+) (\d+) - (.+) (\d+) (.+)/);
           if (match) {
@@ -154,17 +176,26 @@ export const searchNBAData = tool({
         return games;
       });
       if (htmlData.length > 0) {
-        return {
+        return JSON.stringify({
           type: 'scoreboard',
           data: htmlData,
           source: 'ESPN (HTML)',
           timestamp: new Date().toISOString()
-        };
+        });
       }
 
-      return { error: `Could not find information about '${query}'. Try rephrasing your question.` };
-    } catch (e) {
-      return { error: "Unable to browse NBA data right now. Please try again." };
+      return JSON.stringify({ 
+        error: `Could not find specific information about '${query}'. The page may have loaded but data wasn't found.`,
+        query: query,
+        timestamp: new Date().toISOString()
+      });
+    } catch (e: any) {
+      console.error('NBA Browser Tool Error:', e.message);
+      return JSON.stringify({ 
+        error: `Unable to browse NBA data: ${e.message}. This might be due to network issues or the site being unavailable.`,
+        query: query,
+        timestamp: new Date().toISOString()
+      });
     } finally {
       await browser.close();
     }

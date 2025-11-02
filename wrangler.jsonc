@@ -29,5 +29,11 @@
     "directory": "public",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS"
-  }
+  },
+  "migrations": [
+    {
+      "tag": "v1-remove-durable-objects",
+      "deleted_classes": ["ScoutAgent"]
+    }
+  ]
 }

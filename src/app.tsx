@@ -13,7 +13,6 @@ import {
   Moon,
   PaperPlaneTilt,
   Robot,
-  Stop,
   Sun,
   Trash
 } from "@phosphor-icons/react";
@@ -32,10 +31,16 @@ export default function Chat() {
     const savedTheme = localStorage.getItem("theme");
     return (savedTheme as "dark" | "light") || "dark";
   });
+  // ALWAYS start with empty messages - stateless on every reload
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Ensure messages are cleared on mount (stateless requirement)
+  useEffect(() => {
+    setMessages([]);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
