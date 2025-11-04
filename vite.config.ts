@@ -11,9 +11,11 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src")
     }
   },
+  root: ".",
+  publicDir: "public",
   build: {
-    outDir: "public",
-    emptyOutDir: false, // Don't delete existing files like favicon.ico
+    outDir: "dist",
+    emptyOutDir: true,
     rollupOptions: {
       input: path.resolve(__dirname, "index.html")
     }

@@ -1,2 +1,6 @@
 # No secrets required for Workers AI bindings.
 # Add additional environment variables here as needed.
+
+# Brave Search API key for fetching live sports data.
+# Copy this file to .dev.vars and replace with your own Brave Search API key for local development.
+BRAVE_API_KEY=your_brave_api_key_here

@@ -1,8 +1,8 @@
-# 🏀 cf_ai_scout - AI Sports Analytics Agent
+# 🏀 cf_ai_scout - Dual-Sport Analytics Agent (NBA + NFL)
 
 ## Overview
 
-cf_ai_scout is a real-time NBA analytics chatbot that browses live web data from ESPN and NBA.com using Cloudflare Browser Rendering.
+cf_ai_scout is a dual-sport analytics agent that fetches real-time NBA and NFL data from ESPN, NBA.com, NFL.com, and sports news sites using the Brave Search API.
 
 ## Live Demo
 
@@ -10,38 +10,102 @@ Deployed URL – coming soon after launch.
 
 ## Features
 
-- ✅ Live NBA scores and stats from ESPN/NBA.com
+- ✅ Live NBA and NFL scores and stats from ESPN/NBA.com/NFL.com
+- ✅ Intelligent sport detection and query optimization
 - ✅ Real-time player performance queries
 - ✅ Game results and box scores
 - ✅ Stateless chat (fresh session every page load)
-- ✅ Web browsing with Puppeteer
+- ✅ Real-time data via Brave Search API
+- ✅ Dual-sport support (NBA basketball and NFL football)
 
 ## Tech Stack
 
 - Cloudflare Workers (stateless)
 - Workers AI (Llama 3.3 70B)
-- Browser Rendering (Puppeteer)
-- Vercel AI SDK (tool execution)
+- Cloudflare Agents SDK (agent orchestration)
+- Brave Search API (Free tier)
+- workers-ai-provider (bridges Workers AI with function calling)
 - TypeScript + React
+
+## Configuration
+
+### Local Development
+1. Get a Brave Search API key:
+   - Visit https://api.search.brave.com/register
+   - Choose the Free AI plan
+2. Create a `.dev.vars` file in the project root:
+   ```
+   BRAVE_API_KEY=your_brave_api_key_here
+   ```
+   - Ensure `.dev.vars` is in `.gitignore` and never committed to version control.
+
+### Production
+- Set the BRAVE_API_KEY secret using Wrangler:
+  ```
+  wrangler secret put BRAVE_API_KEY
+  ```
+  - This securely stores the API key for production deployments.
+
+## How It Works
+
+The agent leverages the AI SDK's `streamText` function with Workers AI (Llama 3.3 70B) for intelligent tool calling:
+
+- **Automatic Tool Execution**: Tools are invoked automatically when Llama determines that live data is required based on the query.
+- **searchNBAData Tool**: Fetches real-time sports data from authoritative sources via the Brave Search API.
+- **Real-Time Streaming**: Responses are streamed back to the client as they are generated, providing a smooth user experience.
+- **Stateless Design**: Each query is processed independently without retaining conversation history.
 
 ## Local Setup
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/cf_ai_scout
 cd cf_ai_scout
+cp .dev.vars.example .dev.vars
 npm install
+npm run dev
+```
+
+This starts the Cloudflare Worker locally. The Worker will be available at the URL provided by Wrangler (typically `http://localhost:8787`).
+
+Alternatively, to run the frontend development server separately:
+
+```bash
 npm start
 ```
 
-Open http://localhost:5173 in your browser.
+Open the provided URL in your browser.
 
-Note: Browser Rendering requires a remote binding during development.
+Note: Configure your Brave API key in `.dev.vars` for local development. Ensure `.dev.vars` is in `.gitignore` and never committed.
+
+## Deployment
+
+1. Set the BRAVE_API_KEY secret for production:
+   ```
+   wrangler secret put BRAVE_API_KEY
+   ```
+2. Deploy the application:
+   ```
+   npm run deploy
+   ```
+3. Verify tool execution by checking logs:
+   ```
+   wrangler tail
+   ```
 
 ## Usage Examples
 
-- "Who won the Lakers game last night?"
-- "Show me LeBron James stats from yesterday"
-- "What's the current NBA scoreboard?"
+- NBA: "Who won the Lakers game last night?", "Show me LeBron James stats"
+- NFL: "Who's leading the NFL in passing yards?", "What's Patrick Mahomes' record?"
+- Mixed: "Compare elite athletes in NBA and NFL"
+
+## Testing
+
+Test the agent's tool calling behavior with these example queries:
+
+- **Greeting**: "hi" → Should respond with a warm greeting without calling any tools.
+- **NBA Query**: "what were the nba scores yesterday" → Should call the `searchNBAData` tool to fetch live data.
+- **NFL Query**: "who leads nfl in passing yards" → Should call the `searchNBAData` tool for current stats.
+- **General Knowledge**: "how many quarters in basketball" → Should respond directly without tool usage.
 
 ## Architecture
 
@@ -49,9 +113,9 @@ Note: Browser Rendering requires a remote binding during development.
 graph LR
   User --> Worker
   Worker -->|"Workers AI (Llama 3.3)"| LLM
-  Worker -->|"Browser Rendering"| ESPN/NBA.com
+  Worker -->|"Brave Search API"| ESPN/NBA.com/NFL.com/SportsNews
   LLM:::cloudflare
-  ESPN/NBA.com:::external
+  ESPN/NBA.com/NFL.com/SportsNews:::external
 
 classDef cloudflare fill:#f5f5f5,stroke:#7f7f7f,stroke-width:1px,color:#222;
 classDef external fill:#e1f5fe,stroke:#01579b,stroke-width:1px,color:#01579b;
@@ -60,13 +124,14 @@ classDef external fill:#e1f5fe,stroke:#01579b,stroke-width:1px,color:#01579b;
 ## Requirements
 
 - LLM: Llama 3.3 on Workers AI ✅
-- Coordination: Browser Rendering tool ✅
+- Workflow/Coordination: Agent with searchNBAData tool using Cloudflare Agents SDK ✅
 - User Input: Chat interface ✅
-- Real data: Live web scraping ✅
-- State: Stateless (no persistence) ✅
+- Memory/State: Stateless (no persistence) ✅
+- Real Data: Live web data fetching ✅
+- Multi-sport: NBA and NFL support ✅
 
 ## Future Enhancements
 
 - Voice input via Realtime API
 - Live game WebSocket feeds
-- Multi-sport support (NFL, MLB)
+- Expansion to MLB and NHL support

@@ -4,24 +4,7 @@
   "main": "src/server.ts",
   "compatibility_date": "2025-08-03",
   "compatibility_flags": ["nodejs_compat_v2"],
-  "browser": {
-    "binding": "BROWSER"
-  },
-  "observability": {
-    "enabled": false,
-    "head_sampling_rate": 1,
-    "logs": {
-      "enabled": true,
-      "head_sampling_rate": 1,
-      "persist": true,
-      "invocation_logs": true
-    },
-    "traces": {
-      "enabled": false,
-      "persist": true,
-      "head_sampling_rate": 1
-    }
-  },
+  "vars": {},
   "ai": {
     "binding": "AI"
   },
@@ -30,10 +13,11 @@
     "not_found_handling": "single-page-application",
     "binding": "ASSETS"
   },
-  "migrations": [
-    {
-      "tag": "v1-remove-durable-objects",
-      "deleted_classes": ["ScoutAgent"]
+  "observability": {
+    "enabled": false,
+    "logs": {
+      "enabled": true,
+      "persist": true
     }
-  ]
+  }
 }

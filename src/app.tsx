@@ -1,322 +1,264 @@
-/** biome-ignore-all lint/correctness/useUniqueElementIds: it's alright */
-import { useEffect, useState, useRef, useCallback } from "react";
-
-// Component imports
-import { Button } from "@/components/button/Button";
-import { Card } from "@/components/card/Card";
-import { Avatar } from "@/components/avatar/Avatar";
-import { Textarea } from "@/components/textarea/Textarea";
-import { MemoizedMarkdown } from "@/components/memoized-markdown";
-
-// Icon imports
-import {
-  Moon,
-  PaperPlaneTilt,
-  Robot,
-  Sun,
-  Trash
-} from "@phosphor-icons/react";
-
-
+import { useEffect, useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { PaperPlaneTilt, Trash, Sparkle } from "@phosphor-icons/react";
+import { MessageBubble } from "@/components/MessageBubble";
+import { ThinkingDisplay } from "@/components/ThinkingDisplay";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
+  links?: Array<{ title: string; url: string }>;
   timestamp: Date;
 };
 
+type ThinkingState = {
+  understood?: string;
+  searchQuery?: string;
+  isSearching: boolean;
+  resultsCount?: number;
+  sources?: string[];
+};
+
 export default function Chat() {
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    // Check localStorage first, default to dark if not found
-    const savedTheme = localStorage.getItem("theme");
-    return (savedTheme as "dark" | "light") || "dark";
-  });
-  // ALWAYS start with empty messages - stateless on every reload
   const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [textareaHeight, setTextareaHeight] = useState("auto");
+  const [thinking, setThinking] = useState<ThinkingState | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Ensure messages are cleared on mount (stateless requirement)
-  useEffect(() => {
-    setMessages([]);
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  };
 
-  useEffect(() => {
-    // Apply theme class on mount and when theme changes
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-      document.documentElement.classList.remove("light");
-    } else {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.classList.add("light");
-    }
-
-    // Save theme preference to localStorage
-    localStorage.setItem("theme", theme);
-  }, [theme]);
-
-  // Scroll to bottom on mount
   useEffect(() => {
     scrollToBottom();
-  }, [scrollToBottom]);
+  }, [messages, thinking]);
 
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-  };
-
-  const [agentInput, setAgentInput] = useState("");
-  const handleAgentInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    setAgentInput(e.target.value);
-  };
-
-  const handleAgentSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!agentInput.trim() || isLoading) return;
+    if (!input.trim() || isLoading) return;
 
-    const userMessage = agentInput;
-    setAgentInput("");
+    const userMessage = input.trim();
+    setInput("");
+    
+    // Add user message
     setMessages((prev) => [
       ...prev,
-      { role: "user", content: userMessage, timestamp: new Date() }
+      { role: "user", content: userMessage, timestamp: new Date() },
     ]);
+    
     setIsLoading(true);
+
+    // Show thinking state
+    setThinking({
+      understood: `Analyzing your question about "${userMessage.slice(0, 50)}${userMessage.length > 50 ? "..." : ""}"`,
+      searchQuery: userMessage,
+      isSearching: true,
+    });
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage })
+        body: JSON.stringify({ message: userMessage }),
       });
 
       if (!response.ok) {
         throw new Error("API request failed");
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      const data = await response.json();
 
-      let assistantContent = "";
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: "",
-        timestamp: new Date()
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        assistantContent += chunk;
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg === assistantMessage ? { ...msg, content: assistantContent } : msg
-          )
-        );
+      // Update thinking with results
+      if (data.thinking) {
+        setThinking({
+          understood: data.thinking.understood,
+          searchQuery: userMessage,
+          isSearching: false,
+          resultsCount: data.thinking.resultsCount,
+          sources: data.thinking.sources,
+        });
       }
-    } catch (error) {
-      console.error("Error sending message:", error);
+
+      // Wait a moment to show the thinking completion
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // Clear thinking and add assistant message
+      setThinking(null);
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "I'm having trouble browsing right now. Please try again.",
-          timestamp: new Date()
-        }
+          content: data.answer || "No response received",
+          links: data.links || [],
+          timestamp: new Date(),
+        },
+      ]);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setThinking(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "I'm having trouble connecting right now. Please try again.",
+          timestamp: new Date(),
+        },
       ]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messages.length > 0 && scrollToBottom();
-  }, [messages, scrollToBottom]);
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const clearChat = () => {
+    setMessages([]);
+    setThinking(null);
   };
 
   return (
-    <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
-      <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
-        <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
-          <div className="flex items-center justify-center h-8 w-8">
-            <Robot size={28} className="text-[#F48120]" />
+    <div className="h-screen w-full overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950">
+      {/* Background Effects */}
+      <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent" />
+
+      <div className="relative h-full flex flex-col max-w-5xl mx-auto px-4">
+        {/* Hero Section - Top 35% */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="flex-shrink-0 pt-12 pb-8 text-center"
+        >
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm mb-6">
+            <Sparkle size={16} className="text-blue-400" weight="fill" />
+            <span className="text-sm font-medium text-white/70">
+              Powered by Brave Search & Cloudflare AI
+            </span>
           </div>
 
-          <div className="flex-1">
-            <h2 className="font-semibold text-base">NBA Scout Chat</h2>
-          </div>
+          <h1 className="text-6xl font-bold bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent mb-4">
+            NBA Scout Chat
+          </h1>
+          
+          <p className="text-xl text-white/60 font-medium mb-2">
+            Live sports analytics with AI
+          </p>
+          
+          <p className="text-white/40">
+            Comprehensive NBA and NFL data, stats, and insights
+          </p>
+        </motion.div>
 
-          <Button
-            variant="ghost"
-            size="md"
-            shape="square"
-            className="rounded-full h-9 w-9"
-            onClick={toggleTheme}
-          >
-            {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="md"
-            shape="square"
-            className="rounded-full h-9 w-9"
-            onClick={() => window.location.reload()}
-          >
-            <Trash size={20} />
-          </Button>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
-          {messages.length === 0 && (
-            <div className="h-full flex items-center justify-center">
-              <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
-                <div className="text-center space-y-4">
-                  <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
-                    <Robot size={24} />
-                  </div>
-                  <h3 className="font-semibold text-lg">Welcome to NBA Scout</h3>
-                  <p className="text-muted-foreground text-sm">
-                    Ask me about live NBA data. Try asking:
-                  </p>
-                  <ul className="text-sm text-left space-y-2">
-                    <li className="flex items-center gap-2">
-                      <span className="text-[#F48120]">•</span>
-                      <span>Who scored the most points last night?</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-[#F48120]">•</span>
-                      <span>What's the Lakers game score today?</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-[#F48120]">•</span>
-                      <span>Show me LeBron James recent stats</span>
-                    </li>
-                  </ul>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {messages.map((m, index) => {
-            const isUser = m.role === "user";
-            const showAvatar =
-              index === 0 || messages[index - 1]?.role !== m.role;
-
-            return (
-              <div key={index}>
-                <div
-                  className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`flex gap-2 max-w-[85%] ${
-                      isUser ? "flex-row-reverse" : "flex-row"
-                    }`}
-                  >
-                    {showAvatar && !isUser ? (
-                      <Avatar username={"AI"} />
-                    ) : (
-                      !isUser && <div className="w-8" />
-                    )}
-
-                    <div>
-                      <Card
-                        className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
-                          isUser
-                            ? "rounded-br-none"
-                            : "rounded-bl-none border-assistant-border"
-                        }`}
-                      >
-                        <MemoizedMarkdown id={`msg-${index}`} content={m.content} />
-                      </Card>
-                      <p
-                        className={`text-xs text-muted-foreground mt-1 ${
-                          isUser ? "text-right" : "text-left"
-                        }`}
-                      >
-                        {formatTime(m.timestamp)}
-                      </p>
-                    </div>
-                  </div>
+        {/* Chat Container - Middle 50% */}
+        <div className="flex-1 overflow-y-auto min-h-0 pb-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+          {messages.length === 0 && !thinking && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3 }}
+              className="h-full flex items-center justify-center"
+            >
+              <div className="text-center space-y-6 p-8 rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl max-w-md">
+                <div className="text-5xl mb-4">🏀</div>
+                <h3 className="text-xl font-semibold text-white/90">
+                  Ask me anything about NBA & NFL
+                </h3>
+                <div className="space-y-3 text-left">
+                  {[
+                    "What are the NBA scores today?",
+                    "Show me LeBron James stats",
+                    "What's the Lakers record this season?",
+                  ].map((example, idx) => (
+                    <motion.button
+                      key={idx}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.4 + idx * 0.1 }}
+                      whileHover={{ scale: 1.02, x: 4 }}
+                      onClick={() => setInput(example)}
+                      className="w-full text-left px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white/90 transition-all text-sm"
+                    >
+                      {example}
+                    </motion.button>
+                  ))}
                 </div>
               </div>
-            );
-          })}
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="flex gap-2 max-w-[85%]">
-                <Avatar username={"AI"} />
-                <Card className="p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 rounded-bl-none border-assistant-border">
-                  <div className="flex items-center gap-2">
-                    <div className="animate-pulse">Thinking...</div>
-                  </div>
-                </Card>
-              </div>
-            </div>
+            </motion.div>
           )}
+
+          {messages.map((msg, idx) => (
+            <MessageBubble
+              key={idx}
+              role={msg.role}
+              content={msg.content}
+              links={msg.links}
+              timestamp={msg.timestamp}
+            />
+          ))}
+
+          <AnimatePresence>
+            {thinking && (
+              <ThinkingDisplay
+                understood={thinking.understood}
+                searchQuery={thinking.searchQuery}
+                isSearching={thinking.isSearching}
+                resultsCount={thinking.resultsCount}
+                sources={thinking.sources}
+              />
+            )}
+          </AnimatePresence>
+
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
-        <form
-          onSubmit={handleAgentSubmit}
-          className="p-3 bg-neutral-50 absolute bottom-0 left-0 right-0 z-10 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
+        {/* Input Area - Bottom 15% */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="flex-shrink-0 pb-6 pt-4"
         >
-          <div className="flex items-center gap-2">
-            <div className="flex-1 relative">
-              <Textarea
-                disabled={isLoading}
-                placeholder="Ask about NBA scores, stats, or games..."
-                className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2 ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
-                value={agentInput}
-                onChange={(e) => {
-                  handleAgentInputChange(e);
-                  // Auto-resize the textarea
-                  e.target.style.height = "auto";
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                  setTextareaHeight(`${e.target.scrollHeight}px`);
-                }}
-                onKeyDown={(e) => {
-                  if (
-                    e.key === "Enter" &&
-                    !e.shiftKey &&
-                    !e.nativeEvent.isComposing
-                  ) {
-                    e.preventDefault();
-                    handleAgentSubmit(e);
-                    setTextareaHeight("auto"); // Reset height on Enter submission
-                  }
-                }}
-                rows={2}
-                style={{ height: textareaHeight }}
-              />
-              <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-                <button
+          <form onSubmit={handleSubmit} className="relative">
+            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-1 backdrop-blur-xl shadow-2xl">
+              <div className="flex items-center gap-2 px-4">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  disabled={isLoading}
+                  placeholder="Ask about NBA scores, stats, or games..."
+                  className="flex-1 bg-transparent py-4 text-white placeholder:text-white/40 focus:outline-none disabled:opacity-50"
+                />
+                
+                {messages.length > 0 && (
+                  <motion.button
+                    type="button"
+                    onClick={clearChat}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="rounded-full p-2 text-white/40 hover:bg-white/10 hover:text-white/70 transition-all"
+                  >
+                    <Trash size={20} />
+                  </motion.button>
+                )}
+
+                <motion.button
                   type="submit"
-                  className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                  disabled={isLoading || !agentInput.trim()}
-                  aria-label="Send message"
+                  disabled={!input.trim() || isLoading}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="rounded-full bg-gradient-to-r from-blue-600 to-blue-700 p-3 text-white shadow-lg shadow-blue-500/50 transition-all hover:shadow-blue-500/70 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                 >
-                  <PaperPlaneTilt size={16} />
-                </button>
+                  <PaperPlaneTilt
+                    size={20}
+                    weight="fill"
+                    className={isLoading ? "animate-pulse" : ""}
+                  />
+                </motion.button>
               </div>
             </div>
-          </div>
-        </form>
+          </form>
+        </motion.div>
       </div>
     </div>
   );
