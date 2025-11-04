@@ -137,7 +137,7 @@ export default function Chat() {
           </div>
 
           <h1 className="text-6xl font-bold bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent mb-4">
-            NBA Scout Chat
+            Scout Chat
           </h1>
           
           <p className="text-xl text-white/60 font-medium mb-2">
@@ -159,7 +159,6 @@ export default function Chat() {
               className="h-full flex items-center justify-center"
             >
               <div className="text-center space-y-6 p-8 rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl max-w-md">
-                <div className="text-5xl mb-4">🏀</div>
                 <h3 className="text-xl font-semibold text-white/90">
                   Ask me anything about NBA & NFL
                 </h3>
@@ -167,7 +166,7 @@ export default function Chat() {
                   {[
                     "What are the NBA scores today?",
                     "Show me LeBron James stats",
-                    "What's the Lakers record this season?",
+                    "What are the NFL scores this week?",
                   ].map((example, idx) => (
                     <motion.button
                       key={idx}
