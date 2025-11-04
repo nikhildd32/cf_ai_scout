@@ -6,7 +6,9 @@ cf_ai_scout is a dual-sport analytics agent that fetches real-time NBA and NFL d
 
 ## Live Demo
 
-Deployed URL – coming soon after launch.
+**Deployed URL:** https://my-chat-agent.nikhil-diddee23.workers.dev
+
+The application is live and accessible. You can interact with the chat interface to ask questions about NBA and NFL data.
 
 ## Features
 
@@ -22,9 +24,8 @@ Deployed URL – coming soon after launch.
 
 - Cloudflare Workers (stateless)
 - Workers AI (Llama 3.3 70B)
-- Cloudflare Agents SDK (agent orchestration)
+- @cloudflare/ai-utils (native function calling)
 - Brave Search API (Free tier)
-- workers-ai-provider (bridges Workers AI with function calling)
 - TypeScript + React
 
 ## Configuration
@@ -48,11 +49,11 @@ Deployed URL – coming soon after launch.
 
 ## How It Works
 
-The agent leverages the AI SDK's `streamText` function with Workers AI (Llama 3.3 70B) for intelligent tool calling:
+The agent uses Cloudflare's native `@cloudflare/ai-utils` with Workers AI (Llama 3.3 70B) for intelligent tool calling:
 
 - **Automatic Tool Execution**: Tools are invoked automatically when Llama determines that live data is required based on the query.
 - **searchNBAData Tool**: Fetches real-time sports data from authoritative sources via the Brave Search API.
-- **Real-Time Streaming**: Responses are streamed back to the client as they are generated, providing a smooth user experience.
+- **JSON Responses**: Returns structured JSON responses with answer text, links, and thinking metadata.
 - **Stateless Design**: Each query is processed independently without retaining conversation history.
 
 ## Local Setup
@@ -124,7 +125,7 @@ classDef external fill:#e1f5fe,stroke:#01579b,stroke-width:1px,color:#01579b;
 ## Requirements
 
 - LLM: Llama 3.3 on Workers AI ✅
-- Workflow/Coordination: Agent with searchNBAData tool using Cloudflare Agents SDK ✅
+- Workflow/Coordination: Cloudflare Workers with searchNBAData tool using @cloudflare/ai-utils ✅
 - User Input: Chat interface ✅
 - Memory/State: Stateless (no persistence) ✅
 - Real Data: Live web data fetching ✅
