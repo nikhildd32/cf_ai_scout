@@ -6,7 +6,7 @@ cf_ai_scout is a dual-sport analytics agent that fetches real-time NBA and NFL d
 
 ## Live Demo
 
-**Deployed URL:** https://my-chat-agent.nikhil-diddee23.workers.dev
+**Deployed URL:** https://scout.nikhil-diddee23.workers.dev
 
 The application is live and accessible. You can interact with the chat interface to ask questions about NBA and NFL data.
 
